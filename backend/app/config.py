@@ -54,6 +54,16 @@ class Settings(BaseSettings):
         description="Secret token in the webhook URL path.",
     )
 
+    # ------------------------------------------------------------------ #
+    # JWT admin auth
+    # ------------------------------------------------------------------ #
+    JWT_SECRET: str = Field(
+        default="change-me-in-production-must-be-at-least-32-chars!!",
+        description="Secret key for signing JWTs. Must be ≥32 chars in production.",
+    )
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60
+
     FRONTEND_ORIGIN: str = Field(
         default="http://localhost:5173",
         description="Comma-separated list of allowed CORS origins.",

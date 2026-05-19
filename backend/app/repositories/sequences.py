@@ -38,6 +38,12 @@ async def create(
     return seq
 
 
+async def get_step_by_id(
+    session: AsyncSession, step_id: uuid.UUID
+) -> SequenceStep | None:
+    return await session.get(SequenceStep, step_id)
+
+
 async def add_step(
     session: AsyncSession,
     *,
