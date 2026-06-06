@@ -2,74 +2,88 @@
 
 Two artifacts are deployed independently:
 
-1. **Backend** (FastAPI + aiogram + scheduler) → **Google Cloud Run**.
-2. **Frontend** (React SPA) → **GitHub Pages**.
-
-Database (PostgreSQL) is hosted on **Supabase** or **Neon** free tier.
-
-## Prerequisites
-
-- Google Cloud project with billing enabled.
-- `gcloud` CLI authenticated locally: `gcloud auth login` and `gcloud config set project <PROJECT_ID>`.
-- Artifact Registry repository created (one-time):
-  ```
-  gcloud artifacts repositories create arabic-contact-bot \
-    --repository-format=docker --location=europe-west1
-  ```
-- Database created on Supabase or Neon. Note the `DATABASE_URL` (must include `sslmode=require`).
-- Telegram bot created via BotFather. Note the token and bot username.
-- GitHub repository for the project, with Pages enabled (Source: GitHub Actions).
-
-## Environment variables (backend)
-
-Set these in Cloud Run (or via Secret Manager and reference them):
-
-| Name | Description |
+| Artifact | Target |
 |---|---|
-| `ENV` | `production` / `staging`. Controls docs exposure, log verbosity. |
-| `DATABASE_URL` | `postgresql+asyncpg://user:pass@host:5432/db?ssl=true` |
-| `TELEGRAM_BOT_TOKEN` | From BotFather. **Secret.** |
-| `TELEGRAM_WEBHOOK_SECRET` | Random 32+ char string used in the URL path. **Secret.** |
-| `TELEGRAM_WEBHOOK_HEADER_SECRET` | Random 32+ char string for the `X-Telegram-Bot-Api-Secret-Token` header. **Secret.** |
-| `PUBLIC_BASE_URL` | Cloud Run service URL, e.g. `https://arabic-bot-xxxxx-ew.a.run.app`. |
-| `BOT_USERNAME` | Bot username without `@`, used to build deep-link URLs. |
-| `JWT_SECRET` | 64+ chars random. **Secret.** |
-| `JWT_EXPIRES_MIN` | Default `60`. |
-| `ADMIN_BOOTSTRAP_EMAIL` | Initial admin email. |
-| `ADMIN_BOOTSTRAP_PASSWORD` | Initial admin password (rotated after first login). **Secret.** |
-| `ADMIN_TEST_CHAT_ID` | Operator's Telegram chat id for material previews. |
-| `CORS_ORIGINS` | Comma-separated list, e.g. `https://<user>.github.io`. |
-| `SCHEDULER_POLL_SECONDS` | Default `15`. |
-| `LOG_LEVEL` | Default `INFO`. |
+| **Backend** (FastAPI + aiogram) | Google Cloud Run |
+| **Frontend** (React SPA) | GitHub Pages (via GitHub Actions) |
+| **Database** | Supabase PostgreSQL (free tier) |
 
-Store every "Secret." item in **Google Secret Manager**, then reference from Cloud Run via `--set-secrets`.
+For full step-by-step Cloud Run commands see
+[`backend/cloudrun.deploy.md`](../backend/cloudrun.deploy.md).
+
+---
+
+## Environment variables — backend
+
+Set non-secret vars via `--set-env-vars` and secret vars via `--set-secrets`
+(Google Secret Manager). **Never commit secrets or pass them as plain env vars
+in CI logs.**
+
+| Variable | Required | Description |
+|---|---|---|
+| `ENV` | Yes | `production` / `staging` / `development`. Controls docs exposure and log verbosity. |
+| `DATABASE_URL` | Yes | Supabase Transaction Pooler URL (port 6543). `postgresql+asyncpg://postgres.REF:PASS@aws-0-REGION.pooler.supabase.com:6543/postgres`. **Secret.** |
+| `TELEGRAM_BOT_TOKEN` | Yes | From @BotFather. **Secret.** |
+| `TELEGRAM_WEBHOOK_SECRET` | Yes | 32+ char random string sent by Telegram in `X-Telegram-Bot-Api-Secret-Token` header. **Secret.** |
+| `JWT_SECRET` | Yes | 48+ char random string for signing admin JWTs. **Secret.** |
+| `INTERNAL_API_KEY` | Yes | Shared secret for `POST /internal/process-scheduled`. **Secret.** |
+| `FRONTEND_ORIGIN` | Yes | GitHub Pages URL, e.g. `https://USER.github.io`. Comma-separate multiple origins. |
+| `LOG_LEVEL` | No | Default `INFO`. |
+| `JWT_EXPIRE_MINUTES` | No | Default `60`. |
+| `SCHEDULER_MAX_MESSAGES` | No | Max messages per scheduler run. Default `100`. |
+| `DB_POOL_SIZE` | No | Per-instance pool connections. Default `2`. |
+| `DB_MAX_OVERFLOW` | No | Burst connections above pool size. Default `3`. |
+| `DB_POOL_RECYCLE` | No | Recycle idle connections after N seconds. Default `1800`. |
+| `DB_POOL_PRE_PING` | No | Detect stale connections on checkout. Default `true`. |
+
+### Secret Manager — recommended setup
+
+```bash
+# Create each secret once:
+printf '%s' "$VALUE" | gcloud secrets create SECRET_NAME --data-file=-
+
+# Reference from Cloud Run:
+--set-secrets DATABASE_URL=arabic-bot-db-url:latest,\
+              TELEGRAM_BOT_TOKEN=arabic-bot-tg-token:latest,\
+              TELEGRAM_WEBHOOK_SECRET=arabic-bot-tg-secret:latest,\
+              JWT_SECRET=arabic-bot-jwt-secret:latest,\
+              INTERNAL_API_KEY=arabic-bot-internal-key:latest
+```
+
+---
 
 ## Backend: build & deploy
 
-### 1. Dockerfile (in `backend/`)
+### Dockerfile
 
-The image must:
+- Base: `python:3.13-slim`
+- Runs as non-root (`appuser`, uid 1000)
+- Listens on `$PORT` (Cloud Run injects this; defaults to `8080`)
+- CMD: `exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}`
 
-- Use `python:3.12-slim` base.
-- Install dependencies via `uv` or `pip` from `pyproject.toml` / `requirements.txt`.
-- Copy app source.
-- Run as non-root user.
-- Listen on the port provided by `$PORT` (Cloud Run sets this).
-- `CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]`.
+### Build
 
-### 2. Local build & push
-
-```
-PROJECT_ID=<gcp-project>
+```bash
+PROJECT_ID=your-gcp-project
 REGION=europe-west1
-IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/arabic-contact-bot/api:$(git rev-parse --short HEAD)
+SHORT_SHA=$(git rev-parse --short HEAD)
+IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/arabic-contact-bot/api:$SHORT_SHA
 
 gcloud builds submit backend/ --tag $IMAGE
 ```
 
-### 3. Deploy to Cloud Run
+### Migrate
 
+```bash
+gcloud run jobs execute arabic-bot-migrate --region $REGION --wait
 ```
+
+Run before every deploy that ships new Alembic migrations. See
+`cloudrun.deploy.md` for the one-time job creation command.
+
+### Deploy
+
+```bash
 gcloud run deploy arabic-bot \
   --image $IMAGE \
   --region $REGION \
@@ -80,135 +94,142 @@ gcloud run deploy arabic-bot \
   --max-instances 3 \
   --concurrency 40 \
   --cpu 1 --memory 512Mi \
-  --timeout 60 \
-  --set-env-vars ENV=production,PUBLIC_BASE_URL=https://<service-url>,BOT_USERNAME=<bot>,JWT_EXPIRES_MIN=60,SCHEDULER_POLL_SECONDS=15,LOG_LEVEL=INFO,CORS_ORIGINS=https://<user>.github.io \
-  --set-secrets DATABASE_URL=db-url:latest,TELEGRAM_BOT_TOKEN=tg-token:latest,TELEGRAM_WEBHOOK_SECRET=tg-webhook:latest,TELEGRAM_WEBHOOK_HEADER_SECRET=tg-header:latest,JWT_SECRET=jwt-secret:latest,ADMIN_BOOTSTRAP_EMAIL=admin-email:latest,ADMIN_BOOTSTRAP_PASSWORD=admin-pass:latest,ADMIN_TEST_CHAT_ID=admin-chat:latest
+  --set-env-vars ENV=production,FRONTEND_ORIGIN=https://USER.github.io \
+  --set-secrets DATABASE_URL=arabic-bot-db-url:latest,...
 ```
 
-Key choices:
+`--min-instances 1` keeps the in-process scheduler warm and avoids cold-start
+latency on Telegram webhook bursts.
 
-- `--min-instances 1` keeps the scheduler loop alive between webhook bursts.
-- `--max-instances 3` caps cost. Telegram webhooks are low-volume.
-- `--concurrency 40` lets one instance handle many concurrent webhook calls thanks to asyncio.
-- `--allow-unauthenticated` is required because Telegram cannot send IAM credentials; webhook auth is via the secret in the URL.
+`--allow-unauthenticated` is required because Telegram cannot attach GCP IAM
+credentials. The webhook is protected instead by `TELEGRAM_WEBHOOK_SECRET`.
 
-### 4. Run migrations
+### Register the Telegram webhook
 
-```
-gcloud run jobs create arabic-bot-migrate \
-  --image $IMAGE \
-  --region $REGION \
-  --set-secrets DATABASE_URL=db-url:latest \
-  --command alembic --args upgrade,head
+Run once after first deploy, and again whenever the service URL changes:
 
-gcloud run jobs execute arabic-bot-migrate --region $REGION --wait
-```
+```bash
+curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"url\": \"${SERVICE_URL}/webhook/telegram\",
+    \"secret_token\": \"${TELEGRAM_WEBHOOK_SECRET}\",
+    \"allowed_updates\": [\"message\", \"callback_query\", \"my_chat_member\"]
+  }"
 
-Re-run the job on every deploy that ships a new migration. CI runs it before `gcloud run deploy`.
-
-### 5. Register the Telegram webhook
-
-After the first successful deploy:
-
-```
-curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
-  -d "url=https://<service-url>/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>" \
-  -d "secret_token=<TELEGRAM_WEBHOOK_HEADER_SECRET>" \
-  -d 'allowed_updates=["message","callback_query","my_chat_member"]'
+# Verify
+curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 ```
 
-The backend also calls `setWebhook` on startup, which makes this curl optional after the first deploy.
+### Set up the message scheduler
 
-Verify:
+Cloud Scheduler calls the internal endpoint every minute:
 
+```bash
+gcloud scheduler jobs create http arabic-bot-scheduler \
+  --location $REGION \
+  --schedule "* * * * *" \
+  --uri "${SERVICE_URL}/internal/process-scheduled" \
+  --message-body "" \
+  --headers "X-Internal-Api-Key=${INTERNAL_API_KEY},Content-Type=application/json" \
+  --http-method POST \
+  --attempt-deadline 30s \
+  --time-zone UTC
 ```
-curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getWebhookInfo"
+
+### Create initial admin
+
+```bash
+python -m app.cli create-admin --email admin@example.com --password CHANGE_ME
+# Run this against the production DB via a one-off Cloud Run job.
+# See cloudrun.deploy.md step 7 for the exact gcloud commands.
 ```
 
-### 6. CI/CD (GitHub Actions)
-
-`.github/workflows/backend-deploy.yml`:
-
-- Trigger: push to `main` that touches `backend/**`.
-- Steps:
-  1. Checkout.
-  2. Auth to GCP via Workload Identity Federation.
-  3. `gcloud builds submit` to push image.
-  4. Execute migration job.
-  5. `gcloud run deploy` with the new image tag.
+---
 
 ## Frontend: build & deploy
 
-### 1. Vite config
+### Vite configuration
 
-- `base: '/arabic-contact-bot/'` (matches the GitHub Pages path).
-- Env vars: `VITE_API_BASE_URL` (Cloud Run service URL).
-- HashRouter is used so refreshes on deep links work without a custom 404.
+- `base` is read from `VITE_BASE_PATH` env var (defaults to `/`).
+- Set `VITE_BASE_PATH=/your-repo-name/` for a GitHub project page.
+- Set `VITE_BASE_PATH=/` when using a custom domain on Pages.
+- Hash routing (`createHashRouter`) means no server-side redirect config needed.
 
-### 2. Local build
+### Environment variables — frontend
 
-```
+| Variable | Where to set | Description |
+|---|---|---|
+| `VITE_API_BASE_URL` | GitHub repo variable | Cloud Run service URL, no trailing slash. E.g. `https://arabic-bot-xxxxx-ew.a.run.app` |
+| `VITE_BASE_PATH` | GitHub repo variable | `/` for custom domain, `/repo-name/` for project page |
+
+Set these in **GitHub → repo → Settings → Secrets and variables → Actions →
+Variables** (not Secrets — they are not sensitive).
+
+### GitHub Actions
+
+`.github/workflows/frontend.yml` triggers on push to `main` that touches
+`frontend/**`. Steps:
+
+1. `actions/setup-node@v4` — Node 20, npm cache keyed on `frontend/package-lock.json`
+2. `npm ci` — deterministic install from lockfile
+3. `npm run build` — Vite build with env vars injected
+4. `actions/upload-pages-artifact@v3` — uploads `frontend/dist`
+5. `actions/deploy-pages@v4` — publishes to GitHub Pages
+
+**One-time repo setup:** GitHub → Settings → Pages → Source = **GitHub Actions**.
+
+### Local build
+
+```bash
 cd frontend
+cp .env.example .env.local
+# Edit .env.local: set VITE_API_BASE_URL=http://localhost:8080
 npm ci
-VITE_API_BASE_URL=https://<service-url> npm run build
+npm run dev       # development server at http://localhost:5173
+npm run build     # production build → frontend/dist/
 ```
 
-Output ends up in `frontend/dist/`.
+---
 
-### 3. GitHub Pages via Actions
+## Database (Supabase)
 
-`.github/workflows/frontend-deploy.yml`:
+1. Create a Supabase project (Postgres only — no auth or storage needed).
+2. Dashboard → Settings → Database → Connection string → **Transaction pooler
+   (port 6543)** → URI tab.
+3. Replace `postgresql://` with `postgresql+asyncpg://`.
+4. Store as `arabic-bot-db-url` in Secret Manager.
 
-- Trigger: push to `main` touching `frontend/**`.
-- Steps:
-  1. Checkout.
-  2. `actions/setup-node@v4` with Node 20.
-  3. `npm ci` in `frontend/`.
-  4. `npm run build` with `VITE_API_BASE_URL` from repo secret.
-  5. `actions/upload-pages-artifact@v3` for `frontend/dist`.
-  6. `actions/deploy-pages@v4`.
+**Connection limits** — with `DB_POOL_SIZE=2` and `DB_MAX_OVERFLOW=3`, each
+Cloud Run instance holds ≤ 5 connections. With `--max-instances 3` the total
+peak is 15, well within Supabase free-tier (100 direct / unlimited pooler).
 
-In the repo settings: **Pages → Source = GitHub Actions**.
+**Migrations** — always run `alembic upgrade head` before deploying a new
+revision that adds migrations.
 
-Custom domain (optional): add `frontend/public/CNAME` and a DNS record.
+**Never** use the Supabase `anon` or `service_role` keys for database access.
+**Never** expose `DATABASE_URL` to the frontend.
 
-### 4. CORS
-
-Make sure `CORS_ORIGINS` on the backend includes the final Pages URL (and the custom domain if configured).
-
-## Database
-
-### Supabase
-
-- Project type: Postgres only (no auth, no storage required).
-- In **Connection Pooling**, copy the **Session pooler** connection string for migrations and the **Transaction pooler** for the app — or use the direct connection string with asyncpg. Use `sslmode=require`.
-- Disable email auth and RLS for non-public tables — we're talking to the DB only from the backend.
-
-### Neon
-
-- Create a project, copy the pooled URL.
-- Append `?sslmode=require` if not already present.
-- Note: Neon free tier auto-suspends; set `min-instances=1` on Cloud Run so the scheduler reconnects predictably, and tune `pool_pre_ping=True` in SQLAlchemy.
+---
 
 ## Observability
 
-- **Cloud Run logs**: structured JSON to stdout. Use Cloud Logging filters by `severity`, `labels.request_id`, `labels.telegram_update_id`.
-- **Uptime check**: Google Cloud Monitoring uptime check on `/healthz`, alert on 3 consecutive failures.
-- **Webhook health**: a cron-style task (or simple Cloud Scheduler → HTTP) calls `getWebhookInfo` daily; alerts if `pending_update_count` > threshold.
+- **Logs**: structured JSON to stdout → Cloud Logging. Filter by
+  `jsonPayload.request_id` or `jsonPayload.level`.
+- **Uptime check**: Cloud Monitoring → Uptime checks → `GET /healthz`. Alert on
+  3 consecutive failures.
+- **Webhook health**: periodically run `getWebhookInfo` and alert if
+  `pending_update_count` grows.
+
+---
 
 ## Rollback
 
-```
+```bash
+# Backend: shift traffic to a previous revision
 gcloud run services update-traffic arabic-bot \
-  --region $REGION --to-revisions <previous-revision>=100
+  --region $REGION \
+  --to-revisions arabic-bot-00042-abc=100
+
+# Frontend: re-run the workflow on a prior commit via GitHub Actions UI
 ```
-
-For frontend, redeploy a prior commit via the Actions UI ("Re-run jobs").
-
-## Local development
-
-- `cp .env.example .env` and fill in real values.
-- Backend: `uvicorn app.main:app --reload --port 8080`.
-- Telegram tunnel: use `ngrok http 8080`, then `setWebhook` to `https://<ngrok>/telegram/webhook/<secret>`. (Remember to revert webhook to the prod URL after.)
-- Frontend: `npm run dev` → `http://localhost:5173`. `VITE_API_BASE_URL=http://localhost:8080`.
-- DB: a local Docker Postgres (`postgres:15`) or a separate Supabase project for dev.

@@ -3,14 +3,11 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_db
 from app.models.admin_user import AdminUser
 from app.models.broadcast import BroadcastStatus
-from app.models.segment import UserSegment
-from app.models.user import User
 from app.repositories import broadcasts as broadcast_repo
 from app.schemas.broadcast import (
     BroadcastCreate,
@@ -29,24 +26,7 @@ async def preview_broadcast(
     session: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin),
 ) -> BroadcastPreviewOut:
-    if body.segment_id is None:
-        count = (
-            await session.scalar(
-                select(func.count()).select_from(User).where(User.is_blocked.is_(False))
-            )
-        ) or 0
-    else:
-        count = (
-            await session.scalar(
-                select(func.count())
-                .select_from(UserSegment)
-                .join(User, User.id == UserSegment.user_id)
-                .where(
-                    UserSegment.segment_id == body.segment_id,
-                    User.is_blocked.is_(False),
-                )
-            )
-        ) or 0
+    count = await broadcast_repo.count_recipients(session, body.segment_id)
     return BroadcastPreviewOut(recipient_count=count)
 
 

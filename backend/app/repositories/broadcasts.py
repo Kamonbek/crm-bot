@@ -19,6 +19,33 @@ async def get_by_id(session: AsyncSession, broadcast_id: uuid.UUID) -> Broadcast
     return await session.get(Broadcast, broadcast_id)
 
 
+async def count_recipients(
+    session: AsyncSession, segment_id: uuid.UUID | None
+) -> int:
+    from sqlalchemy import func
+
+    from app.models.segment import UserSegment
+    from app.models.user import User
+
+    if segment_id is None:
+        return (
+            await session.scalar(
+                select(func.count()).select_from(User).where(User.is_blocked.is_(False))
+            )
+        ) or 0
+    return (
+        await session.scalar(
+            select(func.count())
+            .select_from(UserSegment)
+            .join(User, User.id == UserSegment.user_id)
+            .where(
+                UserSegment.segment_id == segment_id,
+                User.is_blocked.is_(False),
+            )
+        )
+    ) or 0
+
+
 async def create(
     session: AsyncSession,
     *,

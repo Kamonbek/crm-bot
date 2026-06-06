@@ -67,6 +67,18 @@ async def update_sequence(
     return SequenceOut.model_validate(seq)
 
 
+@router.get("/{sequence_id}/steps", response_model=list[SequenceStepOut])
+async def list_steps(
+    sequence_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+) -> list[SequenceStepOut]:
+    if not await seq_repo.get_by_id(session, sequence_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Sequence not found")
+    steps = await seq_repo.list_steps(session, sequence_id)
+    return [SequenceStepOut.model_validate(s) for s in steps]
+
+
 @router.post(
     "/{sequence_id}/steps",
     response_model=SequenceStepOut,

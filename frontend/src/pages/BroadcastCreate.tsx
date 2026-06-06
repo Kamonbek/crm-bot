@@ -1,75 +1,37 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { broadcastApi } from '../api/broadcasts';
-import { materialApi } from '../api/materials';
-import { sequenceApi } from '../api/sequences';
 import PageHeader from '../components/PageHeader';
 import { Users, Send, Eye } from 'lucide-react';
+import { useBroadcastWizard, type Step } from '../hooks/useBroadcastWizard';
 
-type Step = 'compose' | 'preview' | 'send';
+const stepLabels: Record<Step, string> = {
+  compose: '1. Compose',
+  preview: '2. Preview',
+  send: '3. Send',
+};
 
 export default function BroadcastCreate() {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-
-  const [step, setStep] = useState<Step>('compose');
-  const [name, setName] = useState('');
-  const [materialId, setMaterialId] = useState('');
-  const [segmentId, setSegmentId] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [previewCount, setPreviewCount] = useState<number | null>(null);
-  const [broadcastId, setBroadcastId] = useState<string | null>(null);
-  const [error, setError] = useState('');
-
-  const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: materialApi.list });
-  const { data: sequences } = useQuery({ queryKey: ['sequences'], queryFn: sequenceApi.list });
-
-  const preview = useMutation({
-    mutationFn: () => broadcastApi.preview(segmentId || null),
-    onSuccess: (data) => {
-      setPreviewCount(data.recipient_count);
-      setStep('preview');
-    },
-    onError: () => setError('Failed to get preview.'),
-  });
-
-  const create = useMutation({
-    mutationFn: () =>
-      broadcastApi.create({
-        name,
-        material_id: materialId,
-        segment_id: segmentId || null,
-        scheduled_at: scheduledAt || null,
-      }),
-    onSuccess: (data) => {
-      setBroadcastId(data.id);
-      setStep('send');
-    },
-    onError: () => setError('Failed to create broadcast.'),
-  });
-
-  const send = useMutation({
-    mutationFn: () => broadcastApi.send(broadcastId!, scheduledAt || null),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['broadcasts'] });
-      navigate('/broadcasts');
-    },
-    onError: () => setError('Failed to send broadcast.'),
-  });
-
-  function handlePreview(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    if (!name || !materialId) { setError('Name and material are required.'); return; }
-    preview.mutate();
-  }
-
-  const stepLabels: Record<Step, string> = {
-    compose: '1. Compose',
-    preview: '2. Preview',
-    send: '3. Send',
-  };
+  const {
+    step,
+    name,
+    setName,
+    materialId,
+    setMaterialId,
+    segmentId,
+    setSegmentId,
+    scheduledAt,
+    setScheduledAt,
+    previewCount,
+    error,
+    materials,
+    sequences,
+    isPreviewPending,
+    isCreatePending,
+    isSendPending,
+    handlePreview,
+    handleCreate,
+    handleSend,
+    handleBack,
+    handleCancel,
+  } = useBroadcastWizard();
 
   return (
     <div className="p-6 max-w-xl">
@@ -120,10 +82,10 @@ export default function BroadcastCreate() {
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
           <div className="flex gap-3 pt-2">
-            <button type="submit" className="btn-primary flex items-center gap-2" disabled={preview.isPending}>
-              <Eye size={14} /> {preview.isPending ? 'Checking…' : 'Preview Recipients'}
+            <button type="submit" className="btn-primary flex items-center gap-2" disabled={isPreviewPending}>
+              <Eye size={14} /> {isPreviewPending ? 'Checking…' : 'Preview Recipients'}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => navigate('/broadcasts')}>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
               Cancel
             </button>
           </div>
@@ -152,12 +114,12 @@ export default function BroadcastCreate() {
           <div className="flex gap-3">
             <button
               className="btn-primary flex items-center gap-2"
-              onClick={() => create.mutate()}
-              disabled={create.isPending}
+              onClick={handleCreate}
+              disabled={isCreatePending}
             >
-              <Send size={14} /> {create.isPending ? 'Creating…' : 'Create Broadcast'}
+              <Send size={14} /> {isCreatePending ? 'Creating…' : 'Create Broadcast'}
             </button>
-            <button className="btn-secondary" onClick={() => setStep('compose')}>Back</button>
+            <button className="btn-secondary" onClick={handleBack}>Back</button>
           </div>
         </div>
       )}
@@ -174,12 +136,12 @@ export default function BroadcastCreate() {
           <div className="flex gap-3">
             <button
               className="btn-primary flex items-center gap-2"
-              onClick={() => send.mutate()}
-              disabled={send.isPending}
+              onClick={handleSend}
+              disabled={isSendPending}
             >
-              <Send size={14} /> {send.isPending ? 'Sending…' : scheduledAt ? 'Schedule Send' : 'Send Now'}
+              <Send size={14} /> {isSendPending ? 'Sending…' : scheduledAt ? 'Schedule Send' : 'Send Now'}
             </button>
-            <button className="btn-secondary" onClick={() => navigate('/broadcasts')}>
+            <button className="btn-secondary" onClick={handleCancel}>
               Save as Draft
             </button>
           </div>

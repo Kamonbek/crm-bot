@@ -1,105 +1,41 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { sequenceApi } from '../api/sequences';
-import { materialApi } from '../api/materials';
 import PageHeader from '../components/PageHeader';
 import LoadingState from '../components/LoadingState';
 import ConfirmModal from '../components/ConfirmModal';
 import type { TriggerKind } from '../types';
 import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { useSequenceForm } from '../hooks/useSequenceForm';
 
 const TRIGGER_KINDS: TriggerKind[] = ['campaign_join', 'manual', 'tag_added'];
 
 export default function SequenceForm() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const isEdit = !!id;
-
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [triggerKind, setTriggerKind] = useState<TriggerKind>('campaign_join');
-  const [isActive, setIsActive] = useState(true);
-  const [error, setError] = useState('');
-
-  const [newStepMaterialId, setNewStepMaterialId] = useState('');
-  const [newStepDelay, setNewStepDelay] = useState(0);
-  const [deleteStepId, setDeleteStepId] = useState<string | null>(null);
-
-  const { data: existing, isLoading } = useQuery({
-    queryKey: ['sequence', id],
-    queryFn: () => sequenceApi.get(id!),
-    enabled: isEdit,
-  });
-
-  const { data: steps, isLoading: stepsLoading } = useQuery({
-    queryKey: ['sequence-steps', id],
-    queryFn: () => sequenceApi.listSteps(id!),
-    enabled: isEdit,
-  });
-
-  const { data: materials } = useQuery({
-    queryKey: ['materials'],
-    queryFn: materialApi.list,
-  });
-
-  useEffect(() => {
-    if (existing) {
-      setName(existing.name);
-      setDescription(existing.description ?? '');
-      setTriggerKind(existing.trigger_kind ?? 'on_start');
-      setIsActive(existing.is_active);
-    }
-  }, [existing]);
-
-  const create = useMutation({
-    mutationFn: sequenceApi.create,
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['sequences'] });
-      navigate(`/sequences/${data.id}/edit`);
-    },
-    onError: () => setError('Failed to create sequence.'),
-  });
-
-  const update = useMutation({
-    mutationFn: (data: Parameters<typeof sequenceApi.update>[1]) => sequenceApi.update(id!, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sequences'] }); navigate('/sequences'); },
-    onError: () => setError('Failed to update sequence.'),
-  });
-
-  const addStep = useMutation({
-    mutationFn: () => sequenceApi.addStep(id!, {
-      position: (steps?.length ?? 0) + 1,
-      delay_minutes: newStepDelay,
-      material_id: newStepMaterialId,
-    }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sequence-steps', id] });
-      setNewStepMaterialId('');
-      setNewStepDelay(0);
-    },
-  });
-
-  const deleteStep = useMutation({
-    mutationFn: (stepId: string) => sequenceApi.deleteStep(stepId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sequence-steps', id] });
-      setDeleteStepId(null);
-    },
-  });
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    const payload = {
-      name,
-      description: description || null,
-      trigger_kind: triggerKind,
-      is_active: isActive,
-    };
-    if (isEdit) { update.mutate(payload); } else { create.mutate(payload); }
-  }
+  const {
+    isEdit,
+    isLoading,
+    stepsLoading,
+    name,
+    setName,
+    description,
+    setDescription,
+    triggerKind,
+    setTriggerKind,
+    isActive,
+    setIsActive,
+    error,
+    steps,
+    newStepMaterialId,
+    setNewStepMaterialId,
+    newStepDelay,
+    setNewStepDelay,
+    deleteStepId,
+    setDeleteStepId,
+    materials,
+    isPending,
+    isAddStepPending,
+    handleSubmit,
+    handleAddStep,
+    handleDeleteStep,
+    handleCancel,
+  } = useSequenceForm();
 
   if (isEdit && isLoading) return <div className="p-6"><LoadingState /></div>;
 
@@ -136,10 +72,10 @@ export default function SequenceForm() {
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
         <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary" disabled={create.isPending || update.isPending}>
-            {create.isPending || update.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create & Add Steps'}
+          <button type="submit" className="btn-primary" disabled={isPending}>
+            {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create & Add Steps'}
           </button>
-          <button type="button" className="btn-secondary" onClick={() => navigate('/sequences')}>
+          <button type="button" className="btn-secondary" onClick={handleCancel}>
             Cancel
           </button>
         </div>
@@ -207,8 +143,8 @@ export default function SequenceForm() {
               <button
                 type="button"
                 className="btn-primary flex items-center gap-1.5 text-sm shrink-0"
-                disabled={!newStepMaterialId || addStep.isPending}
-                onClick={() => addStep.mutate()}
+                disabled={!newStepMaterialId || isAddStepPending}
+                onClick={handleAddStep}
               >
                 <Plus size={14} /> Add
               </button>
@@ -223,7 +159,7 @@ export default function SequenceForm() {
           message="This will remove the step from the sequence."
           confirmLabel="Remove"
           danger
-          onConfirm={() => deleteStep.mutate(deleteStepId)}
+          onConfirm={() => handleDeleteStep(deleteStepId)}
           onCancel={() => setDeleteStepId(null)}
         />
       )}
