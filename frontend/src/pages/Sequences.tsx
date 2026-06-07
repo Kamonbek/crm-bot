@@ -27,11 +27,11 @@ export default function Sequences() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Sequences"
-        subtitle="Automated message drip campaigns"
+        title="Auto-flows"
+        subtitle="Automated message drip auto-flows"
         action={
           <Link to="/sequences/new" className="btn-primary flex items-center gap-2 text-sm">
-            <Plus size={14} /> New Sequence
+            <Plus size={14} /> New Auto-flow
           </Link>
         }
       />
@@ -40,7 +40,7 @@ export default function Sequences() {
       {isError && <ErrorState message="Failed to load sequences." />}
 
       {data && data.length === 0 && (
-        <EmptyState title="No sequences yet" description="Create a sequence to automate follow-up messages." />
+        <EmptyState title="No auto-flows yet" description="Create an auto-flow to automate follow-up messages." />
       )}
 
       {data && data.length > 0 && (

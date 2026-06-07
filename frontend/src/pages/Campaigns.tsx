@@ -30,11 +30,11 @@ export default function Campaigns() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Campaigns"
-        subtitle="Track deep-link sources"
+        title="Invite links"
+        subtitle="Track where your students come from"
         action={
           <Link to="/campaigns/new" className="btn-primary flex items-center gap-2 text-sm">
-            <Plus size={14} /> New Campaign
+            <Plus size={14} /> New Invite Link
           </Link>
         }
       />
@@ -43,7 +43,7 @@ export default function Campaigns() {
       {isError && <ErrorState message="Failed to load campaigns." />}
 
       {data && data.length === 0 && (
-        <EmptyState title="No campaigns yet" description="Create a campaign to generate deep-link URLs." />
+        <EmptyState title="No invite links yet" description="Create an invite link to generate deep-link URLs." />
       )}
 
       {data && data.length > 0 && (
@@ -52,7 +52,7 @@ export default function Campaigns() {
             <thead>
               <tr className="border-b border-[#1a2e24]">
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Name</th>
-                <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Slug</th>
+                <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Keyword</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Status</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Created</th>
                 <th className="px-4 py-3" />

@@ -8,10 +8,10 @@ import { useAuth } from '../hooks/useAuth';
 const nav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/users', label: 'Users', icon: Users },
-  { to: '/campaigns', label: 'Campaigns', icon: Megaphone },
-  { to: '/materials', label: 'Materials', icon: BookOpen },
-  { to: '/sequences', label: 'Sequences', icon: GitBranch },
-  { to: '/broadcasts', label: 'Broadcasts', icon: Radio },
+  { to: '/campaigns', label: 'Invite links', icon: Megaphone },
+  { to: '/materials', label: 'Messages', icon: BookOpen },
+  { to: '/sequences', label: 'Auto-flows', icon: GitBranch },
+  { to: '/broadcasts', label: 'Send message', icon: Radio },
 ];
 
 export default function Sidebar() {
@@ -21,7 +21,7 @@ export default function Sidebar() {
     <aside className="w-56 shrink-0 flex flex-col bg-[#0a1510] border-r border-[#1a2e24] h-full">
       <div className="px-5 py-5 border-b border-[#1a2e24]">
         <span className="text-brand-400 font-bold text-lg tracking-tight">Arabic CRM</span>
-        <p className="text-[#4a7060] text-xs mt-0.5">Admin Panel</p>
+        <p className="text-[#4a7060] text-xs mt-0.5">Teacher Dashboard</p>
       </div>
 
       <nav className="flex-1 py-4 space-y-0.5 px-2">

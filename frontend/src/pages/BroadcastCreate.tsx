@@ -3,9 +3,9 @@ import { Users, Send, Eye } from 'lucide-react';
 import { useBroadcastWizard, type Step } from '../hooks/useBroadcastWizard';
 
 const stepLabels: Record<Step, string> = {
-  compose: '1. Compose',
-  preview: '2. Preview',
-  send: '3. Send',
+  compose: '1. Choose message',
+  preview: '2. Check recipients',
+  send: '3. Confirm & send',
 };
 
 export default function BroadcastCreate() {
@@ -35,7 +35,7 @@ export default function BroadcastCreate() {
 
   return (
     <div className="p-6 max-w-xl">
-      <PageHeader title="New Broadcast" />
+      <PageHeader title="Send a message" />
 
       <div className="flex gap-6 mb-6">
         {(['compose', 'preview', 'send'] as Step[]).map((s) => (
@@ -51,25 +51,25 @@ export default function BroadcastCreate() {
       {step === 'compose' && (
         <form onSubmit={handlePreview} className="card p-6 space-y-4">
           <div>
-            <label className="label">Broadcast Name</label>
+            <label className="label">Message name</label>
             <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} required placeholder="May announcement" />
           </div>
           <div>
-            <label className="label">Material</label>
+            <label className="label">Message to send</label>
             <select className="input-field" value={materialId} onChange={(e) => setMaterialId(e.target.value)} required>
               <option value="">Select material…</option>
               {materials?.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="label">Segment (optional)</label>
+            <label className="label">Send to group (optional)</label>
             <select className="input-field" value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
-              <option value="">All active users</option>
+              <option value="">Everyone</option>
               {sequences?.map((s) => <option key={s.id} value={s.id}>Enrolled in: {s.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="label">Schedule At (optional)</label>
+            <label className="label">Send at (optional)</label>
             <input
               type="datetime-local"
               className="input-field"
@@ -98,7 +98,7 @@ export default function BroadcastCreate() {
             <Users size={20} className="text-brand-400 shrink-0" />
             <div>
               <p className="text-2xl font-bold text-[#dff5ea] font-mono">{previewCount?.toLocaleString()}</p>
-              <p className="text-sm text-[#4a7060]">recipients will receive this broadcast</p>
+              <p className="text-sm text-[#4a7060]">people will receive this message</p>
             </div>
           </div>
 
@@ -127,8 +127,8 @@ export default function BroadcastCreate() {
       {step === 'send' && (
         <div className="card p-6 space-y-5">
           <div className="p-4 bg-brand-500/10 rounded-lg border border-brand-500/20">
-            <p className="text-sm text-brand-400 font-medium">Broadcast created successfully</p>
-            <p className="text-xs text-[#4a7060] mt-1">Click Send to dispatch it now{scheduledAt ? ' at the scheduled time' : ''}.</p>
+            <p className="text-sm text-brand-400 font-medium">Ready to send</p>
+            <p className="text-xs text-[#4a7060] mt-1">Tap Send to deliver this message now{scheduledAt ? ' at the scheduled time' : ''}.</p>
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}

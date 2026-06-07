@@ -7,6 +7,20 @@ import { useSequenceForm } from '../hooks/useSequenceForm';
 
 const TRIGGER_KINDS: TriggerKind[] = ['campaign_join', 'manual', 'tag_added'];
 
+const TRIGGER_LABELS: Record<TriggerKind, string> = {
+  campaign_join: 'Someone joins via invite link',
+  manual: 'Triggered manually',
+  tag_added: 'Tag is added',
+};
+
+function formatDelay(minutes: number): string {
+  if (minutes === 0) return 'Sends immediately';
+  if (minutes < 60) return `Sends after ${minutes} min`;
+  if (minutes < 1440) return `Sends after ${minutes / 60} hour${minutes / 60 === 1 ? '' : 's'}`;
+  const days = minutes / 1440;
+  return `Sends after ${days} day${days === 1 ? '' : 's'}`;
+}
+
 export default function SequenceForm() {
   const {
     isEdit,
@@ -41,7 +55,7 @@ export default function SequenceForm() {
 
   return (
     <div className="p-6 max-w-2xl">
-      <PageHeader title={isEdit ? 'Edit Sequence' : 'New Sequence'} />
+      <PageHeader title={isEdit ? 'Edit Auto-flow' : 'New Auto-flow'} />
 
       <form onSubmit={handleSubmit} className="card p-6 space-y-4 mb-6">
         <div>
@@ -53,9 +67,9 @@ export default function SequenceForm() {
           <textarea className="input-field" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div>
-          <label className="label">Trigger</label>
+          <label className="label">Start this flow when…</label>
           <select className="input-field" value={triggerKind} onChange={(e) => setTriggerKind(e.target.value as TriggerKind)}>
-            {TRIGGER_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+            {TRIGGER_KINDS.map((k) => <option key={k} value={k}>{TRIGGER_LABELS[k]}</option>)}
           </select>
         </div>
         <div className="flex items-center gap-2">
@@ -73,7 +87,7 @@ export default function SequenceForm() {
 
         <div className="flex gap-3 pt-2">
           <button type="submit" className="btn-primary" disabled={isPending}>
-            {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create & Add Steps'}
+            {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create & add steps'}
           </button>
           <button type="button" className="btn-secondary" onClick={handleCancel}>
             Cancel
@@ -83,7 +97,7 @@ export default function SequenceForm() {
 
       {isEdit && (
         <div>
-          <h2 className="text-base font-semibold text-[#dff5ea] mb-3">Steps</h2>
+          <h2 className="text-base font-semibold text-[#dff5ea] mb-3">Message steps</h2>
 
           {stepsLoading && <LoadingState />}
 
@@ -102,7 +116,7 @@ export default function SequenceForm() {
                       {materials?.find((m) => m.id === step.material_id)?.name ?? step.material_id}
                     </p>
                     <p className="text-xs text-[#4a7060]">
-                      {step.delay_minutes === 0 ? 'Immediately' : `After ${step.delay_minutes} min`}
+                      {formatDelay(step.delay_minutes)}
                     </p>
                   </div>
                   <button
@@ -116,8 +130,10 @@ export default function SequenceForm() {
             </div>
           )}
 
+          <p className="text-xs text-[#4a7060] mb-3">Messages are sent in order, with the delays you set.</p>
+
           <div className="card p-4">
-            <p className="text-xs font-medium text-[#4a7060] uppercase tracking-wider mb-3">Add Step</p>
+            <p className="text-xs font-medium text-[#4a7060] uppercase tracking-wider mb-3">Add a message step</p>
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="label">Material</label>
@@ -146,7 +162,7 @@ export default function SequenceForm() {
                 disabled={!newStepMaterialId || isAddStepPending}
                 onClick={handleAddStep}
               >
-                <Plus size={14} /> Add
+                <Plus size={14} /> Add step
               </button>
             </div>
           </div>

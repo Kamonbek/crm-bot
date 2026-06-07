@@ -19,6 +19,14 @@ const kindVariant: Record<MaterialKind, 'blue' | 'green' | 'yellow' | 'gray'> = 
   link: 'blue',
 };
 
+const kindLabel: Record<MaterialKind, string> = {
+  text: 'Text',
+  photo: 'Photo',
+  video: 'Video',
+  document: 'File',
+  link: 'Link',
+};
+
 export default function Materials() {
   const qc = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -36,11 +44,11 @@ export default function Materials() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Materials"
-        subtitle="Content library for messages and sequences"
+        title="Messages"
+        subtitle="Your message library"
         action={
           <Link to="/materials/new" className="btn-primary flex items-center gap-2 text-sm">
-            <Plus size={14} /> New Material
+            <Plus size={14} /> New Message
           </Link>
         }
       />
@@ -49,7 +57,7 @@ export default function Materials() {
       {isError && <ErrorState message="Failed to load materials." />}
 
       {data && data.length === 0 && (
-        <EmptyState title="No materials yet" description="Create materials to send in sequences and broadcasts." />
+        <EmptyState title="No messages yet" description="Create messages to send in auto-flows and broadcasts." />
       )}
 
       {data && data.length > 0 && (
@@ -58,7 +66,7 @@ export default function Materials() {
             <thead>
               <tr className="border-b border-[#1a2e24]">
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Name</th>
-                <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Kind</th>
+                <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Type</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Preview</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Created</th>
                 <th className="px-4 py-3" />
@@ -69,7 +77,7 @@ export default function Materials() {
                 <tr key={m.id} className="table-row">
                   <td className="px-4 py-3 text-[#dff5ea] font-medium">{m.name}</td>
                   <td className="px-4 py-3">
-                    <Badge label={m.kind} variant={kindVariant[m.kind] ?? 'gray'} />
+                    <Badge label={kindLabel[m.kind] ?? m.kind} variant={kindVariant[m.kind] ?? 'gray'} />
                   </td>
                   <td className="px-4 py-3 text-[#4a7060] max-w-xs truncate">
                     {m.body?.slice(0, 60) ?? (m.file_id ? 'File attached' : '—')}
@@ -94,8 +102,8 @@ export default function Materials() {
 
       {deleteId && (
         <ConfirmModal
-          title="Delete material?"
-          message="This will permanently delete the material."
+          title="Delete message?"
+          message="This will permanently delete the message."
           confirmLabel="Delete"
           danger
           onConfirm={() => remove.mutate(deleteId)}

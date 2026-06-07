@@ -27,11 +27,11 @@ export default function Broadcasts() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Broadcasts"
-        subtitle="One-time messages sent to all or segmented users"
+        title="Send message"
+        subtitle="Send a message to all your students or a specific group"
         action={
           <Link to="/broadcasts/new" className="btn-primary flex items-center gap-2 text-sm">
-            <Plus size={14} /> New Broadcast
+            <Plus size={14} /> Send to everyone
           </Link>
         }
       />

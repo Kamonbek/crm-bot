@@ -21,6 +21,7 @@ def build_engine(settings: Settings | None = None):
         kwargs["pool_size"] = settings.DB_POOL_SIZE
         kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
         kwargs["pool_recycle"] = settings.DB_POOL_RECYCLE
+        kwargs["connect_args"] = {"statement_cache_size": 0}
     return create_async_engine(settings.DATABASE_URL, **kwargs)
 
 

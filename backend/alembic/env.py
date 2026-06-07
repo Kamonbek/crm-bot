@@ -51,6 +51,7 @@ async def run_migrations_online() -> None:
     kwargs: dict = {"poolclass": pool.NullPool, "future": True}
     if not settings.DATABASE_URL.startswith("sqlite"):
         kwargs["pool_pre_ping"] = settings.DB_POOL_PRE_PING
+        kwargs["connect_args"] = {"statement_cache_size": 0}
 
     engine = create_async_engine(settings.DATABASE_URL, **kwargs)
     async with engine.connect() as connection:
